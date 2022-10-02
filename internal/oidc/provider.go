@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ory/fosite/compose"
+	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/herodot"
 
 	"github.com/authelia/authelia/v4/internal/configuration/schema"
@@ -42,10 +43,7 @@ func NewOpenIDConnectProvider(config *schema.OpenIDConnectConfiguration, storage
 
 	provider.KeyManager = keyManager
 
-	key, err := provider.KeyManager.GetActivePrivateKey()
-	if err != nil {
-		return provider, err
-	}
+	jwtStrategy := provider.KeyManager.Strategy()
 
 	strategy := &compose.CommonStrategy{
 		CoreStrategy: compose.NewOAuth2HMACStrategy(
@@ -53,11 +51,13 @@ func NewOpenIDConnectProvider(config *schema.OpenIDConnectConfiguration, storage
 			[]byte(utils.HashSHA256FromString(config.HMACSecret)),
 			nil,
 		),
-		OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(
-			cconfig,
-			key,
-		),
-		JWTStrategy: provider.KeyManager.Strategy(),
+		OpenIDConnectTokenStrategy: &openid.DefaultStrategy{
+			JWTStrategy:         jwtStrategy,
+			Expiry:              cconfig.GetIDTokenLifespan(),
+			Issuer:              cconfig.IDTokenIssuer,
+			MinParameterEntropy: cconfig.GetMinParameterEntropy(),
+		},
+		JWTStrategy: jwtStrategy,
 	}
 
 	provider.Fosite = compose.Compose(
