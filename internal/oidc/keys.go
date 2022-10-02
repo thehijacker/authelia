@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/ory/fosite/token/jwt"
+	"github.com/ory/x/errorsx"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/authelia/authelia/v4/internal/configuration/schema"
@@ -158,7 +160,7 @@ type JWK struct {
 
 // Strategy returns the relevant jwt.JWTStrategy for this JWT.
 func (j *JWK) Strategy() (strategy jwt.JWTStrategy) {
-	return &JWTStrategy{id: j.id, JWTStrategy: &jwt.RS256JWTStrategy{PrivateKey: j.key}}
+	return &JWTStrategy{id: j.id, JWTStrategy: &RS256JWTStrategy{PrivateKey: j.key}}
 }
 
 // JSONWebKey returns the relevant *jose.JSONWebKey for this JWT.
@@ -176,4 +178,120 @@ func (j *JWK) JSONWebKey() (jwk *jose.JSONWebKey) {
 	}
 
 	return jwk
+}
+
+// RS256JWTStrategy is responsible for generating and validating JWT challenges
+type RS256JWTStrategy struct {
+	*rsa.PrivateKey
+}
+
+// Generate generates a new authorize code or returns an error. set secret
+func (j *RS256JWTStrategy) Generate(ctx context.Context, claims jwt.MapClaims, header jwt.Mapper) (rawToken, sig string, err error) {
+	rawToken, sig, err = generateToken(claims, header, jose.RS256, j.PrivateKey)
+
+	fmt.Printf("----- Generate(ctx: %+v, claims: %+v, header: %+v) -> (rawToken: %s, sig: %s, err: %+v\n", ctx, claims, header, rawToken, sig, err)
+
+	return
+}
+
+// Validate validates a token and returns its signature or an error if the token is not valid.
+func (j *RS256JWTStrategy) Validate(ctx context.Context, token string) (sig string, err error) {
+	sig, err = validateToken(token, j.PublicKey)
+
+	fmt.Printf("----- Validate(ctx: %+v, token: %+v) -> (sig: %s, err: %+v)\n", ctx, token, sig, err)
+
+	return
+}
+
+// Decode will decode a JWT token
+func (j *RS256JWTStrategy) Decode(ctx context.Context, rawToken string) (token *jwt.Token, err error) {
+	token, err = decodeToken(rawToken, j.PublicKey)
+
+	fmt.Printf("----- Decode(ctx: %+v, rawToken: %s) -> (token: %+v, err: %+v)\n", ctx, rawToken, token, err)
+
+	return
+}
+
+// GetSignature will return the signature of a token
+func (j *RS256JWTStrategy) GetSignature(ctx context.Context, token string) (sig string, err error) {
+	sig, err = getTokenSignature(token)
+
+	fmt.Printf("----- GetSignature(ctx: %+v, token: %+v) -> (sig: %s, err: %+v)\n", ctx, token, sig, err)
+
+	return
+}
+
+// Hash will return a given hash based on the byte input or an error upon fail
+func (j *RS256JWTStrategy) Hash(ctx context.Context, in []byte) (out []byte, err error) {
+	out, err = hashSHA256(in)
+
+	fmt.Printf("----- Hash(ctx: %+v, in: %s) -> (out: %s, err: %+v)\n", ctx, in, out, err)
+
+	return
+}
+
+// GetSigningMethodLength will return the length of the signing method
+func (j *RS256JWTStrategy) GetSigningMethodLength() int {
+
+	fmt.Printf("----- GetSigningMethodLength() -> (size: %d)\n", crypto.SHA256.Size())
+
+	return crypto.SHA256.Size()
+}
+
+func getTokenSignature(token string) (string, error) {
+	split := strings.Split(token, ".")
+	if len(split) != 3 {
+		return "", errors.New("Header, body and signature must all be set")
+	}
+	return split[2], nil
+}
+
+func hashSHA256(in []byte) ([]byte, error) {
+	hash := sha256.New()
+	_, err := hash.Write(in)
+	if err != nil {
+		return []byte{}, errorsx.WithStack(err)
+	}
+	return hash.Sum([]byte{}), nil
+}
+
+func decodeToken(token string, verificationKey any) (*jwt.Token, error) {
+	keyFunc := func(*jwt.Token) (any, error) { return verificationKey, nil }
+	return jwt.ParseWithClaims(token, jwt.MapClaims{}, keyFunc)
+}
+
+func validateToken(tokenStr string, verificationKey any) (string, error) {
+	_, err := decodeToken(tokenStr, verificationKey)
+	if err != nil {
+		return "", err
+	}
+	return getTokenSignature(tokenStr)
+}
+
+func generateToken(claims jwt.MapClaims, header jwt.Mapper, signingMethod jose.SignatureAlgorithm, privateKey any) (rawToken string, sig string, err error) {
+	if header == nil || claims == nil {
+		err = errors.New("Either claims or header is nil.")
+		return
+	}
+
+	token := jwt.NewWithClaims(signingMethod, claims)
+	token.Header = assign(token.Header, header.ToMap())
+
+	rawToken, err = token.SignedString(privateKey)
+	if err != nil {
+		return
+	}
+
+	sig, err = getTokenSignature(rawToken)
+	return
+}
+
+func assign(a, b map[string]interface{}) map[string]interface{} {
+	for k, w := range b {
+		if _, ok := a[k]; ok {
+			continue
+		}
+		a[k] = w
+	}
+	return a
 }

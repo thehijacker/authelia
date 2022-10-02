@@ -64,7 +64,14 @@ func init() {
 	}
 
 	teardown := func(suitePath string) error {
-		err := dockerEnvironment.Down()
+		backendLogs, err := dockerEnvironment.Logs("authelia-backend", nil)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(backendLogs)
+
+		err = dockerEnvironment.Down()
 		return err
 	}
 
