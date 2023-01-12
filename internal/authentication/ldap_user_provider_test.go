@@ -1155,7 +1155,7 @@ func TestShouldReturnUsernameFromLDAPWithReferralsInErrorAndResult(t *testing.T)
 		Return(&ldap.SearchResult{
 			Entries:   []*ldap.Entry{},
 			Referrals: []string{"ldap://192.168.2.1"},
-		}, &ldap.Error{ResultCode: ldap.LDAPResultReferral, Err: errors.New("referral"), Packet: &testBERPacketReferral})
+		}, &ldap.Error{ResultCode: ldap.LDAPResultReferral, Err: errors.New("referral"), Packet: NewReferral("192.168.0.1", "ldap://192.168.0.1")})
 
 	dialURLReferral := mockFactory.EXPECT().
 		DialURL(gomock.Eq("ldap://192.168.2.1"), gomock.Any()).
@@ -1277,7 +1277,7 @@ func TestShouldReturnUsernameFromLDAPWithReferralsErr(t *testing.T) {
 
 	searchProfile := mockClient.EXPECT().
 		Search(gomock.Any()).
-		Return(&ldap.SearchResult{}, &ldap.Error{ResultCode: ldap.LDAPResultReferral, Err: errors.New("referral"), Packet: &testBERPacketReferral})
+		Return(&ldap.SearchResult{}, &ldap.Error{ResultCode: ldap.LDAPResultReferral, Err: errors.New("referral"), Packet: NewReferral("192.168.0.1", "ldap://192.168.0.1")})
 
 	dialURLReferral := mockFactory.EXPECT().
 		DialURL(gomock.Eq("ldap://192.168.0.1"), gomock.Any()).
@@ -1787,11 +1787,11 @@ func TestShouldUpdateUserPasswordMSADWithReferrals(t *testing.T) {
 		Return(&ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.2", "ldap://192.168.0.2/CN=john,DC=example,DC=com"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
-		DialURL(gomock.Eq("ldap://192.168.0.1"), gomock.Any()).
+		DialURL(gomock.Eq("ldap://192.168.0.2/CN=john,DC=example,DC=com"), gomock.Any()).
 		Return(mockClientReferral, nil)
 
 	connBindReferral := mockClientReferral.EXPECT().
@@ -1915,7 +1915,7 @@ func TestShouldUpdateUserPasswordMSADWithReferralsWithReferralConnectErr(t *test
 		Return(&ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
@@ -2034,7 +2034,7 @@ func TestShouldUpdateUserPasswordMSADWithReferralsWithReferralModifyErr(t *testi
 		Return(&ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
@@ -2052,7 +2052,7 @@ func TestShouldUpdateUserPasswordMSADWithReferralsWithReferralModifyErr(t *testi
 		Return(&ldap.Error{
 			ResultCode: ldap.LDAPResultBusy,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, modify, dialURLReferral, connBindReferral, modifyReferral, connCloseReferral, connClose)
@@ -2166,7 +2166,7 @@ func TestShouldUpdateUserPasswordMSADWithoutReferrals(t *testing.T) {
 		Return(&ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, modify, connClose)
@@ -2386,7 +2386,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtensionWithReferrals(t *testing.T
 		}, &ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
@@ -2513,7 +2513,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtensionWithoutReferrals(t *testin
 		}, &ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, passwdModify, connClose)
@@ -2626,7 +2626,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtensionWithReferralsReferralConne
 		}, &ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
@@ -2744,7 +2744,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtensionWithReferralsReferralPassw
 		}, &ldap.Error{
 			ResultCode: ldap.LDAPResultReferral,
 			Err:        errors.New("error occurred"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	dialURLReferral := mockFactory.EXPECT().
@@ -2762,7 +2762,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtensionWithReferralsReferralPassw
 		Return(nil, &ldap.Error{
 			ResultCode: ldap.LDAPResultBusy,
 			Err:        errors.New("too busy"),
-			Packet:     &testBERPacketReferral,
+			Packet:     NewReferral("192.168.0.1", "ldap://192.168.0.1"),
 		})
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, passwdModify, dialURLReferral, connBindReferral, passwdModifyReferral, connCloseReferral, connClose)

@@ -1,6 +1,7 @@
 package authentication
 
 import (
+	"fmt"
 	"testing"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
@@ -137,116 +138,23 @@ func TestLDAPEntriesContainsEntry(t *testing.T) {
 	}
 }
 
-var testBERPacketReferral = ber.Packet{
-	Children: []*ber.Packet{
-		{},
-		{
-			Identifier: ber.Identifier{
-				Tag: ber.TagObjectDescriptor,
-			},
-			Children: []*ber.Packet{
-				{
-					Identifier: ber.Identifier{
-						Tag: ber.TagBitString,
-					},
-					Children: []*ber.Packet{
-						{
-							Value: "ldap://192.168.0.1",
-						},
-					},
-				},
-			},
-		},
-	},
-}
+func NewReferral(server, referralURL string) *ber.Packet {
+	root := ber.NewSequence("")
 
-var testBERPacketReferralInvalidObjectDescriptor = ber.Packet{
-	Children: []*ber.Packet{
-		{},
-		{
-			Identifier: ber.Identifier{
-				Tag: ber.TagEOC,
-			},
-			Children: []*ber.Packet{
-				{
-					Identifier: ber.Identifier{
-						Tag: ber.TagBitString,
-					},
-					Children: []*ber.Packet{
-						{
-							Value: "ldap://192.168.0.1",
-						},
-					},
-				},
-			},
-		},
-	},
-}
+	root.AppendChild(ber.NewInteger(ber.ClassUniversal, ber.TypePrimitive, ber.TagInteger, 2, ""))
 
-var testBERPacketReferralWithoutBitString = ber.Packet{
-	Children: []*ber.Packet{
-		{},
-		{
-			Identifier: ber.Identifier{
-				Tag: ber.TagObjectDescriptor,
-			},
-			Children: []*ber.Packet{
-				{
-					Identifier: ber.Identifier{
-						Tag: ber.TagSequence,
-					},
-					Children: []*ber.Packet{
-						{
-							Value: "ldap://192.168.0.1",
-						},
-					},
-				},
-			},
-		},
-	},
-}
+	child := ber.Encode(ber.ClassApplication, ber.TypeConstructed, ber.TagObjectDescriptor, nil, "")
 
-var testBERPacketReferralWithInvalidBitString = ber.Packet{
-	Children: []*ber.Packet{
-		{},
-		{
-			Identifier: ber.Identifier{
-				Tag: ber.TagObjectDescriptor,
-			},
-			Children: []*ber.Packet{
-				{
-					Identifier: ber.Identifier{
-						Tag: ber.TagBitString,
-					},
-					Children: []*ber.Packet{
-						{
-							Value: 55,
-						},
-					},
-				},
-			},
-		},
-	},
-}
+	child.AppendChild(ber.NewInteger(ber.ClassUniversal, ber.TypePrimitive, ber.TagEnumerated, 10, ""))
+	child.AppendChild(ber.NewString(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, "", ""))
+	child.AppendChild(ber.NewString(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, fmt.Sprintf("0000202B: RefErr: DSID-03154242, data 0, 1 access points\n\tref 1: '%s'\n\u0000", server), ""))
 
-var testBERPacketReferralWithoutEnoughChildren = ber.Packet{
-	Children: []*ber.Packet{
-		{
-			Identifier: ber.Identifier{
-				Tag: ber.TagEOC,
-			},
-			Children: []*ber.Packet{
-				{
-					Identifier: ber.Identifier{
-						Tag: ber.TagBitString,
-					},
-					Children: []*ber.Packet{
-						{
-							Value: "ldap://192.168.0.1",
-						},
-					},
-				},
-			},
-		},
-	},
+	referral := ber.Encode(ber.ClassContext, ber.TypeConstructed, ber.TagBitString, nil, "")
+
+	referral.AppendChild(ber.NewString(ber.ClassUniversal, ber.TypePrimitive, ber.TagOctetString, referralURL, ""))
+
+	child.AppendChild(referral)
+	root.AppendChild(child)
+
+	return ber.DecodePacket(root.Bytes())
 }

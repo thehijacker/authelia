@@ -77,7 +77,7 @@ func (p *LDAPUserProvider) logLDAPError(err *ldap.Error) {
 
 	packet, _ := json.Marshal(err.Packet)
 
-	p.log.WithField("packet", base64.StdEncoding.EncodeToString(packet)).Debug("Packet Data Dump")
+	p.log.WithField("packetJSON", base64.StdEncoding.EncodeToString(packet)).WithField("packetBytes", base64.StdEncoding.EncodeToString(err.Packet.Bytes())).Debug("Packet Data Dump")
 }
 
 func (p *LDAPUserProvider) ldapGetReferral(err error) (referral string, ok bool) {
