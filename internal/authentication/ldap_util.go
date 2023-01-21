@@ -105,15 +105,22 @@ func (p *LDAPUserProvider) ldapGetReferral(err error) (referral string, ok bool)
 			return "", false
 		}
 
-		if e.Packet.Children[1].Tag != ber.TagObjectDescriptor {
-			p.log.WithField("tag", e.Packet.Children[1].Tag).Debugf("Lookup of referral skipped for error %v: packet child 2 does not have a tag object descriptor", err)
+		if e.Packet.Children[1].TagType != ber.TypeConstructed || e.Packet.Children[1].ClassType != ber.ClassApplication {
+			p.log.
+				WithField("type", e.Packet.Children[1].TagType).
+				WithField("class", e.Packet.Children[1].ClassType).
+				Debugf("Lookup of referral skipped for error %v: packet child 2 does not have a type of constructed or a class type of application", err)
 
 			return "", false
 		}
 
 		for i := 0; i < len(e.Packet.Children[1].Children); i++ {
-			if e.Packet.Children[1].Children[i].Tag != ber.TagBitString {
-				p.log.WithField("subchild", i).WithField("tag", e.Packet.Children[1].Children[i].Tag).Debug("Sub-Child is being skipped as it's not tagged as a bit string")
+			if e.Packet.Children[1].Children[i].ClassType != ber.ClassContext || e.Packet.Children[1].Children[i].TagType != ber.TypeConstructed || e.Packet.Children[1].Children[i].Tag != ber.TagBitString {
+				p.log.WithField("subchild", i).
+					WithField("tag", e.Packet.Children[1].Children[i].Tag).
+					WithField("type", e.Packet.Children[1].Children[i].TagType).
+					WithField("class", e.Packet.Children[1].Children[i].ClassType).
+					Debug("Sub-Child is being skipped as it's not tagged correctly")
 
 				continue
 			}
