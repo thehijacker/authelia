@@ -122,4 +122,4 @@ require (
 
 exclude github.com/mattn/go-sqlite3 v2.0.3+incompatible
 
-replace github.com/go-ldap/ldap/v3 => github.com/james-d-elliott/ldap/v3 v3.4.4-0.20230110123010-87b5e3e02c6e
+replace github.com/go-ldap/ldap/v3 => github.com/james-d-elliott/ldap/v3 v3.4.4-0.20230121120620-933e888eba68
