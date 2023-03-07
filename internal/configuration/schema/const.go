@@ -119,3 +119,14 @@ const (
 	ldapAttrDescription = "description"
 	ldapAttrCommonName  = "cn"
 )
+
+// Address Schemes.
+const (
+	AddressSchemeTCP  = "tcp"
+	AddressSchemeTCP4 = "tcp4"
+	AddressSchemeTCP6 = "tcp6"
+	AddressSchemeUDP  = "udp"
+	AddressSchemeUDP4 = "udp4"
+	AddressSchemeUDP6 = "udp6"
+	AddressSchemeUnix = "unix"
+)

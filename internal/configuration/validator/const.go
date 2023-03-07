@@ -135,7 +135,7 @@ const (
 
 // Telemetry Error constants.
 const (
-	errFmtTelemetryMetricsScheme = "telemetry: metrics: option 'address' must have a scheme 'tcp://' but it is configured as '%s'"
+	errFmtTelemetryMetricsScheme = "telemetry: metrics: option 'address' must have a scheme of '%s', '%s', '%s', or '%s' but it is configured as '%s'"
 )
 
 // OpenID Error constants.
@@ -279,12 +279,16 @@ const (
 
 // Server Error constants.
 const (
-	errFmtServerTLSCert                           = "server: tls: option 'key' must also be accompanied by option 'certificate'"
-	errFmtServerTLSKey                            = "server: tls: option 'certificate' must also be accompanied by option 'key'"
-	errFmtServerTLSCertFileDoesNotExist           = "server: tls: file path %s provided in 'certificate' does not exist"
-	errFmtServerTLSKeyFileDoesNotExist            = "server: tls: file path %s provided in 'key' does not exist"
-	errFmtServerTLSClientAuthCertFileDoesNotExist = "server: tls: client_certificates: certificates: file path %s does not exist"
-	errFmtServerTLSClientAuthNoAuth               = "server: tls: client authentication cannot be configured if no server certificate and key are provided"
+	errFmtServerTLSCert            = "server: tls: option 'key' must also be accompanied by option 'certificate'"
+	errFmtServerTLSKey             = "server: tls: option 'certificate' must also be accompanied by option 'key'"
+	errFmtServerTLSFileNotExist    = "server: tls: option '%s' the file '%s' does not exist"
+	errFmtServerTLSFileNotExistErr = "server: tls: option '%s' could not determine if the file '%s' exists: %w"
+
+	errFmtServerTLSClientAuthNoAuth = "server: tls: client authentication cannot be configured if no server certificate and key are provided"
+
+	errFmtServerAddressWarnLegacy      = "server: option 'address' replaces options 'host' and 'port': these will automatically be mapped for you but we recommend adjusting your configuration: the equivalent address value based on your configuration is 'tcp://%s:%d'"
+	errFmtServerAddressLegacyAndModern = "server: option 'host' and 'port' can't be configured at the same time as 'address'"
+	errFmtServerAddressScheme          = "server: option 'address' must have a scheme of '%s', '%s', '%s', or '%s' but it is configured as '%s'"
 
 	errFmtServerPathNoForwardSlashes = "server: option 'path' must not contain any forward slashes"
 	errFmtServerPathAlphaNum         = "server: option 'path' must only contain alpha numeric characters"

@@ -10,18 +10,6 @@ import (
 	"github.com/authelia/authelia/v4/internal/utils"
 )
 
-// validateFileExists checks whether a file exist.
-func validateFileExists(path string, validator *schema.StructValidator, errTemplate string) {
-	exist, err := utils.FileExists(path)
-	if err != nil {
-		validator.Push(fmt.Errorf("tls: unable to check if file %s exists: %s", path, err))
-	}
-
-	if !exist {
-		validator.Push(fmt.Errorf(errTemplate, path))
-	}
-}
-
 // ValidateServerTLS checks a server TLS configuration is correct.
 func ValidateServerTLS(config *schema.Configuration, validator *schema.StructValidator) {
 	if config.Server.TLS.Key != "" && config.Server.TLS.Certificate == "" {
@@ -31,11 +19,11 @@ func ValidateServerTLS(config *schema.Configuration, validator *schema.StructVal
 	}
 
 	if config.Server.TLS.Key != "" {
-		validateFileExists(config.Server.TLS.Key, validator, errFmtServerTLSKeyFileDoesNotExist)
+		validateFileExists(config.Server.TLS.Key, validator, "key")
 	}
 
 	if config.Server.TLS.Certificate != "" {
-		validateFileExists(config.Server.TLS.Certificate, validator, errFmtServerTLSCertFileDoesNotExist)
+		validateFileExists(config.Server.TLS.Certificate, validator, "certificate")
 	}
 
 	if config.Server.TLS.Key == "" && config.Server.TLS.Certificate == "" &&
@@ -44,18 +32,39 @@ func ValidateServerTLS(config *schema.Configuration, validator *schema.StructVal
 	}
 
 	for _, clientCertPath := range config.Server.TLS.ClientCertificates {
-		validateFileExists(clientCertPath, validator, errFmtServerTLSClientAuthCertFileDoesNotExist)
+		validateFileExists(clientCertPath, validator, "client_certificates")
 	}
 }
 
 // ValidateServer checks a server configuration is correct.
 func ValidateServer(config *schema.Configuration, validator *schema.StructValidator) {
-	if config.Server.Host == "" {
-		config.Server.Host = schema.DefaultServerConfiguration.Host
+	if config.Server.Address == nil {
+		if config.Server.Host == "" && config.Server.Port == 0 {
+			config.Server.Address = schema.DefaultServerConfiguration.Address
+		} else {
+			host := config.Server.Host
+			port := config.Server.Port
+
+			if host == "" {
+				host = schema.DefaultServerConfiguration.Address.Hostname()
+			}
+
+			if port == 0 {
+				port = schema.DefaultServerConfiguration.Address.Port()
+			}
+
+			validator.PushWarning(fmt.Errorf(errFmtServerAddressWarnLegacy, host, port))
+
+			config.Server.Address = schema.NewAddressFromNetworkValues(schema.AddressSchemeTCP, host, port)
+		}
+	} else {
+		if config.Server.Host != "" || config.Server.Port != 0 {
+			validator.Push(fmt.Errorf(errFmtServerAddressLegacyAndModern))
+		}
 	}
 
-	if config.Server.Port == 0 {
-		config.Server.Port = schema.DefaultServerConfiguration.Port
+	if !config.Server.Address.ValidSchemeHTTP() {
+		validator.Push(fmt.Errorf(errFmtServerAddressScheme, schema.AddressSchemeTCP, schema.AddressSchemeTCP4, schema.AddressSchemeTCP6, schema.AddressSchemeUnix, config.Server.Address.Scheme()))
 	}
 
 	ValidateServerTLS(config, validator)
@@ -182,5 +191,15 @@ func validateServerEndpointsAuthzStrategies(name string, strategies []schema.Ser
 		if !utils.IsStringInSlice(strategy.Name, validAuthzAuthnStrategies) {
 			validator.Push(fmt.Errorf(errFmtServerEndpointsAuthzStrategy, name, strings.Join(validAuthzAuthnStrategies, "', '"), strategy.Name))
 		}
+	}
+}
+
+// validateFileExists checks whether a file exist.
+func validateFileExists(path string, validator *schema.StructValidator, opt string) {
+	exist, err := utils.FileExists(path)
+	if err != nil {
+		validator.Push(fmt.Errorf(errFmtServerTLSFileNotExistErr, opt, path, err))
+	} else if !exist {
+		validator.Push(fmt.Errorf(errFmtServerTLSFileNotExist, opt, path))
 	}
 }

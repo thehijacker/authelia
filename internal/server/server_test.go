@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,12 +24,6 @@ import (
 	"github.com/authelia/authelia/v4/internal/templates"
 	"github.com/authelia/authelia/v4/internal/utils"
 )
-
-func Test(t *testing.T) {
-	fmt.Println(path.Join("/api/authz/", "abc"))
-	fmt.Println(path.Join("/api/authz/", "abc/123/", "{path:*}"))
-	fmt.Println(path.Join("/api/authz/", "abc/123/"))
-}
 
 // TemporaryCertificate contains the FD of 2 temporary files containing the PEM format of the certificate and private key.
 type TemporaryCertificate struct {
@@ -197,6 +190,7 @@ func TestShouldRaiseErrorWhenClientDoesNotSkipVerify(t *testing.T) {
 
 	tlsServerContext, err := NewTLSServerContext(schema.Configuration{
 		Server: schema.ServerConfiguration{
+			Address: schema.NewAddressFromNetworkValues("tcp", "0.0.0.0", 9091),
 			TLS: schema.ServerTLS{
 				Certificate: certificateContext.Certificates[0].CertFile.Name(),
 				Key:         certificateContext.Certificates[0].KeyFile.Name(),
@@ -225,6 +219,7 @@ func TestShouldServeOverTLSWhenClientDoesSkipVerify(t *testing.T) {
 
 	tlsServerContext, err := NewTLSServerContext(schema.Configuration{
 		Server: schema.ServerConfiguration{
+			Address: schema.DefaultServerConfiguration.Address,
 			TLS: schema.ServerTLS{
 				Certificate: certificateContext.Certificates[0].CertFile.Name(),
 				Key:         certificateContext.Certificates[0].KeyFile.Name(),
@@ -262,6 +257,7 @@ func TestShouldServeOverTLSWhenClientHasProperRootCA(t *testing.T) {
 
 	tlsServerContext, err := NewTLSServerContext(schema.Configuration{
 		Server: schema.ServerConfiguration{
+			Address: schema.DefaultServerConfiguration.Address,
 			TLS: schema.ServerTLS{
 				Certificate: certificateContext.Certificates[0].CertFile.Name(),
 				Key:         certificateContext.Certificates[0].KeyFile.Name(),
@@ -313,6 +309,7 @@ func TestShouldRaiseWhenMutualTLSIsConfiguredAndClientIsNotAuthenticated(t *test
 
 	tlsServerContext, err := NewTLSServerContext(schema.Configuration{
 		Server: schema.ServerConfiguration{
+			Address: schema.DefaultServerConfiguration.Address,
 			TLS: schema.ServerTLS{
 				Certificate:        certificateContext.Certificates[0].CertFile.Name(),
 				Key:                certificateContext.Certificates[0].KeyFile.Name(),
@@ -356,6 +353,7 @@ func TestShouldServeProperlyWhenMutualTLSIsConfiguredAndClientIsAuthenticated(t 
 
 	tlsServerContext, err := NewTLSServerContext(schema.Configuration{
 		Server: schema.ServerConfiguration{
+			Address: schema.DefaultServerConfiguration.Address,
 			TLS: schema.ServerTLS{
 				Certificate:        certificateContext.Certificates[0].CertFile.Name(),
 				Key:                certificateContext.Certificates[0].KeyFile.Name(),

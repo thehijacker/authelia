@@ -236,6 +236,7 @@ var Keys = []string{
 	"notifier.template_path",
 	"server.host",
 	"server.port",
+	"server.address",
 	"server.path",
 	"server.asset_path",
 	"server.disable_healthcheck",

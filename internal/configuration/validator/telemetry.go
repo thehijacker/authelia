@@ -12,15 +12,12 @@ func ValidateTelemetry(config *schema.Configuration, validator *schema.StructVal
 		config.Telemetry.Metrics.Address = schema.DefaultTelemetryConfig.Metrics.Address
 	}
 
-	switch config.Telemetry.Metrics.Address.Scheme {
-	case "tcp":
-		break
-	default:
-		validator.Push(fmt.Errorf(errFmtTelemetryMetricsScheme, config.Telemetry.Metrics.Address.Scheme))
+	if !config.Telemetry.Metrics.Address.ValidSchemeHTTP() {
+		validator.Push(fmt.Errorf(errFmtTelemetryMetricsScheme, schema.AddressSchemeTCP, schema.AddressSchemeTCP4, schema.AddressSchemeTCP6, schema.AddressSchemeUnix, config.Telemetry.Metrics.Address.Scheme()))
 	}
 
-	if config.Telemetry.Metrics.Address.Port == 0 {
-		config.Telemetry.Metrics.Address.Port = schema.DefaultTelemetryConfig.Metrics.Address.Port
+	if config.Telemetry.Metrics.Address.Port() == 0 {
+		config.Telemetry.Metrics.Address.SetPort(schema.DefaultTelemetryConfig.Metrics.Address.Port())
 	}
 
 	if config.Telemetry.Metrics.Buffers.Read <= 0 {

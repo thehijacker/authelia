@@ -20,10 +20,18 @@ import (
 	"github.com/go-crypt/crypt/algorithm/plaintext"
 )
 
+func NewAddressUnix(path string) *Address {
+	return &Address{true, true, 0, &url.URL{Scheme: AddressSchemeUnix, Path: path}}
+}
+
+func NewAddressFromNetworkValues(scheme, host string, port int) *Address {
+	return &Address{true, false, port, &url.URL{Scheme: scheme, Host: fmt.Sprintf("%s:%d", host, port)}}
+}
+
 // NewAddressFromString returns an *Address and error depending on the ability to parse the string as an Address.
 func NewAddressFromString(a string) (addr *Address, err error) {
 	if len(a) == 0 {
-		return &Address{true, "tcp", net.ParseIP("0.0.0.0"), 0}, nil
+		return &Address{true, false, 0, &url.URL{Scheme: AddressSchemeTCP, Host: ":0"}}, nil
 	}
 
 	var u *url.URL
@@ -44,72 +52,168 @@ func NewAddressFromString(a string) (addr *Address, err error) {
 // NewAddressFromURL returns an *Address and error depending on the ability to parse the *url.URL as an Address.
 func NewAddressFromURL(u *url.URL) (addr *Address, err error) {
 	addr = &Address{
-		Scheme: strings.ToLower(u.Scheme),
-		IP:     net.ParseIP(u.Hostname()),
+		url: u,
 	}
 
-	if addr.IP == nil {
-		return nil, fmt.Errorf("could not parse ip for address '%s': %s does not appear to be an IP", u.String(), u.Hostname())
+	if err = addr.validate(); err != nil {
+		return nil, err
 	}
-
-	port := u.Port()
-	switch port {
-	case "":
-		break
-	default:
-		addr.Port, err = strconv.Atoi(port)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse port for address '%s': %w", u.String(), err)
-		}
-	}
-
-	switch addr.Scheme {
-	case "tcp", "udp":
-		break
-	default:
-		return nil, fmt.Errorf("could not parse scheme for address '%s': scheme '%s' is not valid, expected to be one of 'tcp://', 'udp://'", u.String(), addr.Scheme)
-	}
-
-	addr.valid = true
 
 	return addr, nil
 }
 
 // Address represents an address.
 type Address struct {
-	valid bool
+	valid  bool
+	socket bool
+	port   int
 
-	Scheme string
-	IP     net.IP
-	Port   int
+	url *url.URL
+}
+
+func (a *Address) validate() (err error) {
+	if a.url == nil {
+		return fmt.Errorf("error validating the address: address url was nil")
+	}
+
+	switch {
+	case a.url.RawQuery != "":
+		return fmt.Errorf("error validating the address: the url '%s' appears to have a query but this is not valid for addresses", a.url.String())
+	case a.url.RawFragment != "", a.url.Fragment != "":
+		return fmt.Errorf("error validating the address: the url '%s' appears to have a fragment but this is not valid for addresses", a.url.String())
+	case a.url.User != nil:
+		return fmt.Errorf("error validating the address: the url '%s' appears to have user info but this is not valid for addresses", a.url.String())
+	}
+
+	switch a.url.Scheme {
+	case AddressSchemeUnix:
+		switch {
+		case a.url.Path == "":
+			return fmt.Errorf("error validating the unix socket address: could not determine path from '%s'", a.url.String())
+		case a.url.Host != "":
+			return fmt.Errorf("error validating the unix socket address: the url '%s' appears to have a host but this is not valid for unix sockets: this may occur if you omit the leading forward slash from the socket path", a.url.String())
+		}
+
+		a.socket = true
+	case AddressSchemeTCP, AddressSchemeTCP4, AddressSchemeTCP6, AddressSchemeUDP, AddressSchemeUDP4, AddressSchemeUDP6:
+		port := a.url.Port()
+
+		switch port {
+		case "":
+			a.url.Host += ":0"
+		default:
+			if a.port, err = strconv.Atoi(port); err != nil {
+				return fmt.Errorf("could not parse port for address '%s': %w", a.url.String(), err)
+			}
+		}
+	default:
+		return fmt.Errorf("could not parse scheme for address '%s': scheme '%s' is not valid, expected to be one of 'tcp://', 'udp://', 'unix://'", a.url.String(), a.url.Scheme)
+	}
+
+	a.valid = true
+
+	return nil
 }
 
 // Valid returns true if the Address is valid.
-func (a Address) Valid() bool {
+func (a *Address) Valid() bool {
 	return a.valid
 }
 
-// String returns a string representation of the Address.
-func (a Address) String() string {
-	if !a.valid {
-		return ""
+// ValidSchemeHTTP returns true if the Address has a value Scheme for HTTP traffic.
+func (a *Address) ValidSchemeHTTP() bool {
+	switch a.Scheme() {
+	case AddressSchemeTCP, AddressSchemeTCP4, AddressSchemeTCP6, AddressSchemeUnix:
+		return true
+	default:
+		return false
 	}
-
-	return fmt.Sprintf("%s://%s:%d", a.Scheme, a.IP.String(), a.Port)
 }
 
-// HostPort returns a string representation of the Address with just the host and port.
-func (a Address) HostPort() string {
-	if !a.valid {
+// String returns a string representation of the Address.
+func (a *Address) String() string {
+	if !a.valid || a.url == nil {
 		return ""
 	}
 
-	return fmt.Sprintf("%s:%d", a.IP.String(), a.Port)
+	return a.url.String()
+}
+
+// Scheme returns the *url.URL Scheme field.
+func (a *Address) Scheme() string {
+	if !a.valid || a.url == nil {
+		return ""
+	}
+
+	return a.url.Scheme
+}
+
+// Hostname returns the output of the *url.URL Hostname func.
+func (a *Address) Hostname() string {
+	if !a.valid || a.url == nil {
+		return ""
+	}
+
+	return a.url.Hostname()
+}
+
+// SetHostname sets the hostname preserving the port.
+func (a *Address) SetHostname(hostname string) {
+	if !a.valid || a.url == nil {
+		return
+	}
+
+	if port := a.url.Port(); port == "" {
+		a.url.Host = hostname
+	} else {
+		a.url.Host = fmt.Sprintf("%s:%s", hostname, port)
+	}
+}
+
+// Port returns the port.
+func (a *Address) Port() int {
+	return a.port
+}
+
+// SetPort sets the port preserving the hostname.
+func (a *Address) SetPort(port int) {
+	if !a.valid || a.url == nil {
+		return
+	}
+
+	a.port = port
+	a.url.Host = net.JoinHostPort(a.url.Hostname(), strconv.Itoa(port))
+}
+
+// Host returns the *url.URL Host field.
+func (a *Address) Host() string {
+	if !a.valid || a.url == nil {
+		return ""
+	}
+
+	return a.url.Host
+}
+
+// Address returns a string representation of the Address with just the host and port.
+func (a *Address) Address() string {
+	if !a.valid || a.url == nil {
+		return ""
+	}
+
+	if a.socket {
+		return a.url.Path
+	}
+
+	return a.url.Host
 }
 
 // Listener creates and returns a net.Listener.
-func (a Address) Listener() (net.Listener, error) {
-	return net.Listen(a.Scheme, a.HostPort())
+func (a *Address) Listener() (net.Listener, error) {
+	if a.url == nil {
+		return nil, fmt.Errorf("address url is nil")
+	}
+
+	return net.Listen(a.url.Scheme, a.Address())
 }
 
 var cdecoder algorithm.DecoderRegister

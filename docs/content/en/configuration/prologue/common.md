@@ -82,12 +82,28 @@ These values are more human readable but have only been available since v4.38.0.
 
 ## Address
 
-The address type is a string that takes the following format:
+The address type is a string that takes the following formats:
 
 ```text
-[<scheme>://]<ip>[:<port>]
+[<scheme>://]<hostname>[:<port>]
+[<scheme>://]:<port>
+unix://<path>
 ```
 
+Examples:
+
+```text
+0.0.0.0
+tcp://0.0.0.0
+tcp://0.0.0.0:9091
+tcp://:9091
+0.0.0.0:9091
+
+udp://0.0.0.0:123
+udp://:123
+
+unix:///var/lib/authelia.sock
+```
 The square brackets indicate optional sections, and the angled brackets indicate required sections. The following
 sections elaborate on this. Sections may only be optional for the purposes of parsing, there may be a configuration
 requirement that one of these is provided.
@@ -95,16 +111,31 @@ requirement that one of these is provided.
 ### scheme
 
 The entire scheme is optional, but if the scheme host delimiter `://` is in the string, the scheme must be present. The
-scheme must be one of `tcp://`, or `udp://`. The default scheme is `tcp://`.
+scheme must be one of the following:
 
-### ip
+* `tcp`
+* `tcp4`
+* `tcp6`
+* `udp`
+* `udp4`
+* `udp6`
+* `unix`
 
-The IP is required. If specifying an IPv6 it should be wrapped in square brackets. For example for the IPv6 address
-`::1` with the `tcp://` scheme and port `80`: `tcp://[::1]:80`.
+The default and assumed scheme for every address is `tcp`. If the scheme is `unix` it must be suffixed with an
+absolute path i.e. `/var/local/authelia.sock` would be represented as `unix:///var/run/authelia.sock`.
+
+### hostname
+
+The hostname is required if the scheme is one of the `tcp` or `udp` schemes and there is no [port](#port) specified. It
+can be any IP that is locally addressable or a hostname which resolves to a locally addressable IP.
+
+If specifying an IPv6 it should be wrapped in square brackets. For example for the IPv6 address `::1` with the `tcp`
+scheme and port `80` the correct address would be `tcp://[::1]:80`.
 
 ### port
 
-The entire port is optional, but if the host port delimiter `:` exists it must also include a numeric port.
+The hostname is required if the scheme is one of the `tcp` or `udp` schemes and there is no [hostname](#hostname)
+specified.
 
 ## Regular Expressions
 

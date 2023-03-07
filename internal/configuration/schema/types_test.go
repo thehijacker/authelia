@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
 	"testing"
 
@@ -16,18 +17,23 @@ import (
 
 func TestNewAddressFromString(t *testing.T) {
 	testCases := []struct {
-		name                                          string
-		have                                          string
-		expected                                      *Address
-		expectedHostPort, expectedString, expectedErr string
+		name                                         string
+		have                                         string
+		expected                                     *Address
+		expectedAddress, expectedString, expectedErr string
 	}{
-		{"ShouldParseBasicAddress", "tcp://0.0.0.0:9091", &Address{true, "tcp", net.ParseIP("0.0.0.0"), 9091}, "0.0.0.0:9091", "tcp://0.0.0.0:9091", ""},
-		{"ShouldParseEmptyAddress", "", &Address{true, "tcp", net.ParseIP("0.0.0.0"), 0}, "0.0.0.0:0", "tcp://0.0.0.0:0", ""},
-		{"ShouldParseAddressMissingScheme", "0.0.0.0:9091", &Address{true, "tcp", net.ParseIP("0.0.0.0"), 9091}, "0.0.0.0:9091", "tcp://0.0.0.0:9091", ""},
-		{"ShouldParseAddressMissingPort", "tcp://0.0.0.0", &Address{true, "tcp", net.ParseIP("0.0.0.0"), 0}, "0.0.0.0:0", "tcp://0.0.0.0:0", ""},
-		{"ShouldNotParseUnknownScheme", "a://0.0.0.0", nil, "", "", "could not parse scheme for address 'a://0.0.0.0': scheme 'a' is not valid, expected to be one of 'tcp://', 'udp://'"},
+		{"ShouldParseBasicAddress", "tcp://0.0.0.0:9091", &Address{true, false, 9091, &url.URL{Scheme: AddressSchemeTCP, Host: "0.0.0.0:9091"}}, "0.0.0.0:9091", "tcp://0.0.0.0:9091", ""},
+		{"ShouldParseEmptyAddress", "", &Address{true, false, 0, &url.URL{Scheme: AddressSchemeTCP, Host: ":0"}}, ":0", "tcp://:0", ""},
+		{"ShouldParseAddressMissingScheme", "0.0.0.0:9091", &Address{true, false, 9091, &url.URL{Scheme: AddressSchemeTCP, Host: "0.0.0.0:9091"}}, "0.0.0.0:9091", "tcp://0.0.0.0:9091", ""},
+		{"ShouldParseAddressMissingPort", "tcp://0.0.0.0", &Address{true, false, 0, &url.URL{Scheme: AddressSchemeTCP, Host: "0.0.0.0:0"}}, "0.0.0.0:0", "tcp://0.0.0.0:0", ""},
+		{"ShouldParseUnixSocket", "unix:///path/to/a/socket.sock", &Address{true, true, 0, &url.URL{Scheme: AddressSchemeUnix, Path: "/path/to/a/socket.sock"}}, "/path/to/a/socket.sock", "unix:///path/to/a/socket.sock", ""},
+		{"ShouldNotParseUnixSocketWithHost", "unix://ahost/path/to/a/socket.sock", nil, "", "", "error validating the unix socket address: the url 'unix://ahost/path/to/a/socket.sock' appears to have a host but this is not valid for unix sockets: this may occur if you omit the leading forward slash from the socket path"},
+		{"ShouldNotParseUnixSocketWithoutPath", "unix://nopath.com", nil, "", "", "error validating the unix socket address: could not determine path from 'unix://nopath.com'"},
+		{"ShouldNotParseUnixSocketWithQuery", "unix:///path/to/a/socket.sock?q=yes", nil, "", "", "error validating the address: the url 'unix:///path/to/a/socket.sock?q=yes' appears to have a query but this is not valid for addresses"},
+		{"ShouldNotParseUnixSocketWithFragment", "unix:///path/to/a/socket.sock#example", nil, "", "", "error validating the address: the url 'unix:///path/to/a/socket.sock#example' appears to have a fragment but this is not valid for addresses"},
+		{"ShouldNotParseUnixSocketWithUserInfo", "unix://user:example@/path/to/a/socket.sock", nil, "", "", "error validating the address: the url 'unix://user:example@/path/to/a/socket.sock' appears to have user info but this is not valid for addresses"},
+		{"ShouldNotParseUnknownScheme", "a://0.0.0.0", nil, "", "", "could not parse scheme for address 'a://0.0.0.0': scheme 'a' is not valid, expected to be one of 'tcp://', 'udp://', 'unix://'"},
 		{"ShouldNotParseInvalidPort", "tcp://0.0.0.0:abc", nil, "", "", "could not parse string 'tcp://0.0.0.0:abc' as address: expected format is [<scheme>://]<ip>[:<port>]: parse \"tcp://0.0.0.0:abc\": invalid port \":abc\" after host"},
-		{"ShouldNotParseInvalidIP", "tcp://example.com:9091", nil, "", "", "could not parse ip for address 'tcp://example.com:9091': example.com does not appear to be an IP"},
 		{"ShouldNotParseInvalidAddress", "@$@#%@#$@@", nil, "", "", "could not parse string '@$@#%@#$@@' as address: expected format is [<scheme>://]<ip>[:<port>]: parse \"tcp://@$@#%@#$@@\": invalid URL escape \"%@#\""},
 		{"ShouldNotParseInvalidAddressWithScheme", "tcp://@$@#%@#$@@", nil, "", "", "could not parse string 'tcp://@$@#%@#$@@' as address: expected format is [<scheme>://]<ip>[:<port>]: parse \"tcp://@$@#%@#$@@\": invalid URL escape \"%@#\""},
 	}
@@ -41,19 +47,121 @@ func TestNewAddressFromString(t *testing.T) {
 			} else {
 				assert.Nil(t, actualErr)
 
-				assert.Equal(t, actual.HostPort(), tc.expectedHostPort)
-				assert.Equal(t, actual.String(), tc.expectedString)
+				assert.Equal(t, tc.expectedAddress, actual.Address())
+				assert.Equal(t, tc.expectedString, actual.String())
+
+				assert.True(t, actual.Valid())
 			}
 
 			assert.Equal(t, tc.expected, actual)
-
-			if actual != nil {
-				assert.True(t, actual.Valid())
-				assert.NotEmpty(t, actual.String())
-				assert.NotEmpty(t, actual.HostPort())
-			}
 		})
 	}
+}
+
+func TestAddressOutputValues(t *testing.T) {
+	var (
+		address  *Address
+		listener net.Listener
+		err      error
+	)
+
+	address = &Address{false, false, 0, nil}
+
+	assert.Equal(t, "", address.String())
+	assert.Equal(t, "", address.Scheme())
+	assert.Equal(t, "", address.Host())
+	assert.Equal(t, "", address.Hostname())
+	assert.Equal(t, "", address.Address())
+	assert.Equal(t, 0, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.Nil(t, listener)
+	assert.EqualError(t, err, "address url is nil")
+
+	address = &Address{false, false, 8080, &url.URL{Scheme: AddressSchemeTCP, Host: "0.0.0.0:8080"}}
+
+	assert.Equal(t, "", address.String())
+	assert.Equal(t, "", address.Scheme())
+	assert.Equal(t, "", address.Host())
+	assert.Equal(t, "", address.Hostname())
+	assert.Equal(t, "", address.Address())
+	assert.Equal(t, 8080, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.NotNil(t, listener)
+	assert.NoError(t, err)
+
+	address = &Address{true, false, 0, nil}
+
+	assert.Equal(t, "", address.String())
+	assert.Equal(t, "", address.Scheme())
+	assert.Equal(t, "", address.Host())
+	assert.Equal(t, "", address.Hostname())
+	assert.Equal(t, "", address.Address())
+	assert.Equal(t, 0, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.Nil(t, listener)
+	assert.EqualError(t, err, "address url is nil")
+
+	address.SetHostname("abc123.com")
+	address.SetPort(50)
+
+	assert.Equal(t, "", address.String())
+	assert.Equal(t, "", address.Scheme())
+	assert.Equal(t, "", address.Host())
+	assert.Equal(t, "", address.Hostname())
+	assert.Equal(t, "", address.Address())
+	assert.Equal(t, 0, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.Nil(t, listener)
+	assert.EqualError(t, err, "address url is nil")
+
+	address = &Address{true, false, 9091, &url.URL{Scheme: AddressSchemeTCP, Host: "0.0.0.0:9091"}}
+
+	assert.Equal(t, "tcp://0.0.0.0:9091", address.String())
+	assert.Equal(t, "tcp", address.Scheme())
+	assert.Equal(t, "0.0.0.0:9091", address.Host())
+	assert.Equal(t, "0.0.0.0", address.Hostname())
+	assert.Equal(t, "0.0.0.0:9091", address.Address())
+	assert.Equal(t, 9091, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.NotNil(t, listener)
+	assert.NoError(t, err)
+
+	assert.NoError(t, listener.Close())
+
+	address.SetPort(9092)
+
+	assert.Equal(t, "tcp://0.0.0.0:9092", address.String())
+	assert.Equal(t, "tcp", address.Scheme())
+	assert.Equal(t, "0.0.0.0:9092", address.Host())
+	assert.Equal(t, "0.0.0.0", address.Hostname())
+	assert.Equal(t, "0.0.0.0:9092", address.Address())
+	assert.Equal(t, 9092, address.Port())
+
+	listener, err = address.Listener()
+
+	assert.NotNil(t, listener)
+	assert.NoError(t, err)
+
+	assert.NoError(t, listener.Close())
+
+	address.SetHostname("example.com")
+
+	assert.Equal(t, "tcp://example.com:9092", address.String())
+	assert.Equal(t, "tcp", address.Scheme())
+	assert.Equal(t, "example.com:9092", address.Host())
+	assert.Equal(t, "example.com", address.Hostname())
+	assert.Equal(t, "example.com:9092", address.Address())
+	assert.Equal(t, 9092, address.Port())
 }
 
 func TestNewX509CertificateChain(t *testing.T) {
