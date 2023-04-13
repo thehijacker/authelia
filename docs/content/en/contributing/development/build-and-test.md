@@ -102,6 +102,8 @@ If you want to manually build the binary from source you will require the open s
 [Development Environment](./environment.md#setup) documentation. Then you can follow the below steps on Linux (you may
 have to adapt them on other systems).
 
+#### Basic Steps
+
 Clone the Repository:
 
 ```bash
@@ -136,6 +138,23 @@ Build the Binary (without debug symbols):
 CGO_ENABLED=1 CGO_CPPFLAGS="-D_FORTIFY_SOURCE=2 -fstack-protector-strong" CGO_LDFLAGS="-Wl,-z,relro,-z,now" \
 go build -ldflags "-linkmode=external -s -w" -trimpath -buildmode=pie -o authelia ./cmd/authelia
 ```
+
+#### Reproducible / Advanced Steps
+
+Authelia allows production of reproducible builds that were built using our pipeline. To achieve this you need to
+follow these steps:
+
+1. Install all of the required dependencies
+2. Find the job number from the pipeline by looking at the CI steps for the build or copying it from the binary output
+   from `authelia build-info`
+3. Run the following command from the root of the repository to output the build commands (where 100 is the number from
+   step 2):
+
+```bash
+go run ./cmd/authelia-scripts build --print --build-number 100
+```
+
+The output of the above command may be ran to perform all of the build steps manually.
 
 [suites]: ./integration-suites.md
 [React]: https://reactjs.org/
