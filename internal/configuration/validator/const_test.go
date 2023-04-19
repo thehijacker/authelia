@@ -13,4 +13,5 @@ const (
 
 const (
 	exampleDotCom = "example.com"
+	rs256         = "rs256"
 )
